@@ -19,7 +19,7 @@ REGIONS = {
 def get_boroughs(region_id):
     params = {"x": "16180339", "p_region_id": region_id,}
     response = requests.get(f"{BASE_URL}/pls/hot_school/sn_search.obj_pls_schools_search_bymap", params=params)
-    doc = lxml.html.fromstring(response.content)
+    doc = lxml.html.fromstring(response.text)
     for a in doc.cssselect("#schoolsguide ol > li > a"):
         yield {
             'id': parse_qs(urlparse(a.get('href')).query)['p_lea_id'][0],
@@ -27,9 +27,9 @@ def get_boroughs(region_id):
             'url': BASE_URL + a.get('href'),
         }
 
-def get_schools(region_id="", borough_id=""):
+def get_schools(region_id="", borough_id="", start_page=1):
 
-    page = 1
+    page = start_page
 
     while True:
 
@@ -60,11 +60,12 @@ def get_schools(region_id="", borough_id=""):
             raise StopIteration()
 
         if "An unexpected problem" in response.text:
-            doc = lxml.html.fromstring(response.content)
+            doc = lxml.html.fromstring(response.text)
             error = doc.cssselect("#errorDetails")[0]
             raise Exception(error.text_content())
 
-        doc = lxml.html.fromstring(response.content)
+        doc = lxml.html.fromstring(response.text)
+        print(doc.cssselect('p.ViewResult')[0].getprevious().text_content())
         for row in doc.cssselect("table.leasearch dl"):
             yield {
                 "name": row.cssselect("dt > a")[0].text,
@@ -76,34 +77,53 @@ def get_schools(region_id="", borough_id=""):
 
 def parse_description_list(el):
     d = {}
-    for k, v in zip(el.cssselect("dt"), el.cssselect("dd")):
-        if len(v.getchildren()) != 0: continue # skip nested
-        key = k.text.replace(':', '')
-        value = v.text
-        d[key] = value
+    if el:
+        for k, v in zip(el.cssselect("dt"), el.cssselect("dd")):
+            if len(v.getchildren()) != 0: continue # skip nested
+            key = k.text.replace(':', '')
+            value = v.text
+            d[key] = value
     return d
+
+def select(el, selector, attr=None, fn=None):
+    match = el.cssselect(selector)
+    if match:
+        if attr:
+            return getattr(match[0], attr)
+        else:
+            return getattr(match[0], fn)()
+    else:
+        return None
+
+def text(obj):
+    return obj.text if obj else None
+
+def parse_school_detail(doc):
+    return {
+        "name": select(doc, '#contentcolumn div[itemprop="address"] span[itemprop="name"]', attr='text'),
+        "street_address": select(doc, '#contentcolumn div[itemprop="address"] span[itemprop="streetAddress"]', attr='text'),
+        "locality": select(doc, '#contentcolumn div[itemprop="address"] span[itemprop="addressLocality"]', attr='text'),
+        "postal_code": select(doc, '#contentcolumn div[itemprop="address"] span[itemprop="postalCode"]', attr='text'),
+        "telephone": select(doc, '#contentcolumn div[itemprop="address"] span[itemprop="telephone"]', attr='text'),
+        **parse_description_list(select('#contentcolumn div[itemprop="address"]', fn='getnext'))
+    }
 
 def get_school_detail(url):
     response = requests.get(url)
-    doc = lxml.html.fromstring(response.content)
-    doc = lxml.html.fromstring(html)
-    return {
-        "name": doc.cssselect('#contentcolumn div[itemprop="address"] span[itemprop="name"]')[0].text,
-        "street_address": doc.cssselect('#contentcolumn div[itemprop="address"] span[itemprop="streetAddress"]')[0].text,
-        "locality": doc.cssselect('#contentcolumn div[itemprop="address"] span[itemprop="addressLocality"]')[0].text,
-        "postal_code": doc.cssselect('#contentcolumn div[itemprop="address"] span[itemprop="postalCode"]')[0].text,
-        "telephone": doc.cssselect('#contentcolumn div[itemprop="address"] span[itemprop="telephone"]')[0].text,
-        **parse_description_list(doc.cssselect('#contentcolumn div[itemprop="address"]')[0].getnext())
-    }
+    doc = lxml.html.fromstring(response.text)
+    return parse_school_detail(doc)
 
 if __name__ == "__main__":
 
+    school_with_most_columns = {}
     schools = []
-    for school in get_schools(region_id=REGIONS['Greater London']):
+    for i, school in enumerate(get_schools(region_id=REGIONS['Greater London'])):
         school_detail = get_school_detail(school['url'])
         school.update(school_detail)
         schools.append(school)
+        school_with_most_columns = max(school_with_most_columns, school, key=lambda x: len(x))
+        print("\t", i+1, school['name'], school['url'])
 
     with open('schools.csv', 'w') as f:
-        writer = csv.DictWriter(fieldnames=list(schools[0].keys()))
+        writer = csv.DictWriter(fieldnames=list(school_with_most_columns.keys()))
         writer.writerows(schools)
