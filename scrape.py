@@ -77,12 +77,12 @@ def get_schools(region_id="", borough_id="", start_page=1):
 
 def parse_description_list(el):
     d = {}
-    if el:
-        for k, v in zip(el.cssselect("dt"), el.cssselect("dd")):
-            if len(v.getchildren()) != 0: continue # skip nested
-            key = k.text.replace(':', '')
-            value = v.text
-            d[key] = value
+    if el is None: return d
+    for k, v in zip(el.cssselect("dt"), el.cssselect("dd")):
+        if len(v.getchildren()) != 0: continue # skip nested
+        key = k.text.replace(':', '')
+        value = v.text
+        d[key] = value
     return d
 
 def select(el, selector, attr=None, fn=None):
@@ -99,13 +99,14 @@ def text(obj):
     return obj.text if obj else None
 
 def parse_school_detail(doc):
+    selector = '#contentcolumn div[itemprop="address"]'
     return {
-        "name": select(doc, '#contentcolumn div[itemprop="address"] span[itemprop="name"]', attr='text'),
-        "street_address": select(doc, '#contentcolumn div[itemprop="address"] span[itemprop="streetAddress"]', attr='text'),
-        "locality": select(doc, '#contentcolumn div[itemprop="address"] span[itemprop="addressLocality"]', attr='text'),
-        "postal_code": select(doc, '#contentcolumn div[itemprop="address"] span[itemprop="postalCode"]', attr='text'),
-        "telephone": select(doc, '#contentcolumn div[itemprop="address"] span[itemprop="telephone"]', attr='text'),
-        **parse_description_list(select('#contentcolumn div[itemprop="address"]', fn='getnext'))
+        "name": select(doc, f'{selector} span[itemprop="name"]', attr='text'),
+        "street_address": select(doc, f'{selector} span[itemprop="streetAddress"]', attr='text'),
+        "locality": select(doc, f'{selector} span[itemprop="addressLocality"]', attr='text'),
+        "postal_code": select(doc, f'{selector} span[itemprop="postalCode"]', attr='text'),
+        "telephone": select(doc, f'{selector} span[itemprop="telephone"]', attr='text'),
+        **parse_description_list(select(doc, selector, fn='getnext'))
     }
 
 def get_school_detail(url):
@@ -115,15 +116,14 @@ def get_school_detail(url):
 
 if __name__ == "__main__":
 
-    school_with_most_columns = {}
-    schools = []
-    for i, school in enumerate(get_schools(region_id=REGIONS['Greater London'])):
-        school_detail = get_school_detail(school['url'])
-        school.update(school_detail)
-        schools.append(school)
-        school_with_most_columns = max(school_with_most_columns, school, key=lambda x: len(x))
-        print("\t", i+1, school['name'], school['url'])
+    import json
 
-    with open('schools.csv', 'w') as f:
-        writer = csv.DictWriter(fieldnames=list(school_with_most_columns.keys()))
-        writer.writerows(schools)
+    with open('schools.json', 'w', buffering=1) as f:
+        schools = []
+        gen = get_schools(region_id=REGIONS['Greater London'], start_page=1)
+        for i, school in enumerate(gen):
+            school_detail = get_school_detail(school['url'])
+            school.update(school_detail)
+            schools.append(school)
+            print("\t", i+1, school['name'], school['url'])
+            f.write(json.dumps(school) + "\n")
