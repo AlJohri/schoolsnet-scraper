@@ -1,24 +1,27 @@
+import re
 import requests
 import lxml.html
 from urllib.parse import urlparse, parse_qs
 
+s = requests.Session()
+
 BASE_URL = "http://www.schoolsnet.com"
 
 REGIONS = {
-    "Scotland": 1,
-    "Wales": 2,
-    "Northern Ireland": 3,
-    "East Anglia": 4,
-    "Greater London": 5,
-    "Midlands": 6,
-    "North": 7,
-    "North West": 8,
-    "South East": 9,
+    "Scotland": 1, # 2713
+    "Wales": 2, # 1734
+    "Northern Ireland": 3, # 1137
+    "East Anglia": 4, # 1423
+    "Greater London": 5, # 3513
+    "Midlands": 6,  # 5890
+    "North": 7, # 4510
+    "North West": 8, # 4038
+    "South East": 9, # 6471
 }
 
 def get_boroughs(region_id):
     params = {"x": "16180339", "p_region_id": region_id,}
-    response = requests.get(f"{BASE_URL}/pls/hot_school/sn_search.obj_pls_schools_search_bymap", params=params)
+    response = s.get(f"{BASE_URL}/pls/hot_school/sn_search.obj_pls_schools_search_bymap", params=params)
     doc = lxml.html.fromstring(response.text)
     for a in doc.cssselect("#schoolsguide ol > li > a"):
         yield {
@@ -53,11 +56,11 @@ def get_schools(region_id="", borough_id="", start_page=1):
             ("pageno", page)
         ]
 
-        response = requests.get(f"{BASE_URL}/uk-schools/search/search-schools.html", params=params)
+        response = s.get(f"{BASE_URL}/uk-schools/search/search-schools.html", params=params)
         print(f"scraping page {page}:", response.url)
 
         if "Unfortunately, your search yielded no results." in response.text:
-            raise StopIteration()
+            return
 
         if "An unexpected problem" in response.text:
             doc = lxml.html.fromstring(response.text)
@@ -65,13 +68,21 @@ def get_schools(region_id="", borough_id="", start_page=1):
             raise Exception(error.text_content())
 
         doc = lxml.html.fromstring(response.text)
-        print(doc.cssselect('p.ViewResult')[0].getprevious().text_content())
-        for row in doc.cssselect("table.leasearch dl"):
-            yield {
-                "name": row.cssselect("dt > a")[0].text,
-                "url": BASE_URL + row.cssselect("dt > a")[0].get('href'),
-                "full_address": " ".join([(x.text + " " + x.tail).replace("\n", " ").strip() for x in row.cssselect("dd")]).replace("  ", " ").strip(),
+
+        meta_text = doc.cssselect('p.ViewResult')[0].getprevious().text_content()
+        print(meta_text)
+        meta = {
+            "total": int(re.search(f"Your search yielded (\d+) schools", meta_text).groups(1)[0])
+        }
+
+        for el in doc.cssselect("table.leasearch dl"):
+            row = {
+                "name": el.cssselect("dt > a")[0].text,
+                "url": BASE_URL + el.cssselect("dt > a")[0].get('href'),
+                "full_address": " ".join([(x.text + " " + x.tail).replace("\n", " ").strip()
+                    for x in el.cssselect("dd")]).replace("  ", " ").strip(),
             }
+            yield row, meta
 
         page += 1
 
@@ -110,7 +121,7 @@ def parse_school_detail(doc):
     }
 
 def get_school_detail(url):
-    response = requests.get(url)
+    response = s.get(url)
     doc = lxml.html.fromstring(response.text)
     return parse_school_detail(doc)
 
@@ -118,12 +129,29 @@ if __name__ == "__main__":
 
     import json
 
-    with open('schools.json', 'w', buffering=1) as f:
-        schools = []
-        gen = get_schools(region_id=REGIONS['Greater London'], start_page=1)
-        for i, school in enumerate(gen):
-            school_detail = get_school_detail(school['url'])
-            school.update(school_detail)
-            schools.append(school)
-            print("\t", i+1, school['name'], school['url'])
-            f.write(json.dumps(school) + "\n")
+    for region_name, region_id in REGIONS.items():
+
+        region_slug = region_name.lower().replace(' ', '_')
+
+        try:
+            with open(f'data/{region_slug}.json', 'r') as f:
+                schools = (json.loads(line) for line in f)
+                schools = {x['url']:x for x in schools}
+        except IOError:
+            schools = {}
+
+        with open(f'data/{region_slug}.json', 'a', buffering=1) as f:
+            gen = get_schools(region_id=region_id)
+            for i, (school, meta) in enumerate(gen):
+                total = meta['total']
+                if len(schools) == total:
+                    print(f"[{region_slug}] scrape already finished. {len(schools)} downloaded and {total} schools total in search")
+                    break
+
+                if school['url'] in schools:
+                    print(f"[{region_slug}] [{i} of {total}] {school['url']} already downloaded")
+                    continue
+                school_detail = get_school_detail(school['url'])
+                school.update(school_detail)
+                print(f"[{region_slug}] [{i} of {total}] {school['url']} downloaded")
+                f.write(json.dumps(school) + "\n")

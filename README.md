@@ -5,5 +5,7 @@ Scrape schools from http://www.schoolsnet.com/
 ## Quickstart
 
 ```
-python scrape.py
+pipenv install
+pipenv run python scrape.py
+pipenv run python export.py
 ```
