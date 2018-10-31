@@ -1,23 +1,21 @@
 import sys
 import csv
 import json
-from scrape import REGIONS
+import pandas as pd
 
-for region_name in REGIONS.keys():
-    region_slug = region_name.lower().replace(' ', '_')
+print('loading schools')
+with open(f'data/schools.json', 'r') as f:
+    schools = [json.loads(line) for line in f]
 
-    try:
-        with open(f'data/{region_slug}.json') as f:
-            rows = [json.loads(line) for line in f]
-    except IOError:
-        continue
+row_with_most_columns = max(schools, key=lambda x: len(x))
+fieldnames = list(row_with_most_columns.keys())
 
-    print(region_slug, len(rows))
+print('writing data/schools.csv')
+with open(f'data/schools.csv', 'w') as f:
+    writer = csv.DictWriter(f, fieldnames=fieldnames)
+    writer.writeheader()
+    writer.writerows(schools)
 
-    row_with_most_columns = max(rows, key=lambda x: len(x))
-    fieldnames = list(row_with_most_columns.keys())
-
-    with open(f'data/{region_slug}.csv', 'w') as f:
-        writer = csv.DictWriter(f, fieldnames=fieldnames)
-        writer.writeheader()
-        writer.writerows(rows)
+print('writing data/schools.xlsx')
+df = pd.read_csv('data/schools.csv')
+df.to_excel('data/schools.xlsx', index=False)

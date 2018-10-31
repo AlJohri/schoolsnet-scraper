@@ -7,8 +7,13 @@ name = "pypi"
 requests = "*"
 lxml = "*"
 cssselect = "*"
+pandas = "*"
+openpyxl = "*"
+requests-cache = "*"
 
 [dev-packages]
+pandas = "*"
+pdbpp = "*"
 
 [requires]
 python_version = "3.7"
