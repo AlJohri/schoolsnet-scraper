@@ -16,6 +16,7 @@ with open(f'data/schools.csv', 'w') as f:
     writer.writeheader()
     writer.writerows(schools)
 
+# TODO: export region per tab of excel sheet
 print('writing data/schools.xlsx')
 df = pd.read_csv('data/schools.csv')
 df.to_excel('data/schools.xlsx', index=False)

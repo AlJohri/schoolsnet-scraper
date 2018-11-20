@@ -25,6 +25,7 @@ REGIONS = {
     "North": 7, # 4510
     "North West": 8, # 4038
     "South East": 9, # 6471
+    "South West": 10,
 }
 
 def get_boroughs(region_id):
