@@ -12,7 +12,6 @@ openpyxl = "*"
 requests-cache = "*"
 
 [dev-packages]
-pandas = "*"
 pdbpp = "*"
 
 [requires]

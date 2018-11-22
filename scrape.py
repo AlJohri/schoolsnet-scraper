@@ -76,9 +76,12 @@ def get_schools(region_id="", borough_id="", start_page=1):
             error = doc.cssselect("#errorDetails")[0]
             raise Exception(error.text_content())
 
+        response.raise_for_status()
+
         doc = lxml.html.fromstring(response.text)
 
-        meta_text = doc.cssselect('p.ViewResult')[0].getprevious().text_content()
+        # meta_text = doc.cssselect('p.ViewResult')[0].getprevious().text_content()
+        meta_text = doc.cssselect('#contentcolumn h3')[0].getnext().text_content()
         print(meta_text)
         meta = {
             "total": int(re.search(f"Your search yielded (\d+) schools", meta_text).groups(1)[0])
@@ -171,5 +174,6 @@ if __name__ == "__main__":
                     continue
                 school_detail = get_school_detail(school['url'])
                 school.update(school_detail)
+                school['region'] = region_name
                 print(f"[{region_name}] [{i} of {total}] {school['url']} downloaded")
                 f.write(json.dumps(school) + "\n")
