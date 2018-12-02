@@ -93,8 +93,8 @@ def get_schools(region_id="", borough_id="", start_page=1):
             row = {
                 "name": el.cssselect("dt > a")[0].text,
                 "url": BASE_URL + el.cssselect("dt > a")[0].get('href'),
-                "full_address": " ".join([(x.text + " " + x.tail).replace("\n", " ").strip()
-                    for x in el.cssselect("dd")]).replace("  ", " ").strip(),
+                # "full_address": " ".join([(x.text + " " + x.tail).replace("\n", " ").strip()
+                #     for x in el.cssselect("dd")]).replace("  ", " ").strip(),
             }
             yield row, {"index": meta['page_start']+i, **meta}
 
