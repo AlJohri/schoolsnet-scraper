@@ -12,7 +12,7 @@ fieldnames = list(row_with_most_columns.keys())
 
 print('writing data/schools.csv')
 with open(f'data/schools.csv', 'w') as f:
-    writer = csv.DictWriter(f, fieldnames=fieldnames)
+    writer = csv.DictWriter(f, fieldnames=fieldnames, lineterminator="\n")
     writer.writeheader()
     writer.writerows(schools)
 
